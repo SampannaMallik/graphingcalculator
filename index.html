@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Graphing Calculator — Single File</title>
+  <style>
+    :root{--bg:#0f1724;--panel:#0b1220;--accent:#3b82f6;--muted:#94a3b8;--card:#0d1320}
+    *{box-sizing:border-box;font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial}
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#071028 0%, #071025 100%);color:#e6eef8}
+    .app{display:grid;grid-template-columns:360px 1fr;gap:18px;height:100vh;padding:18px}
+    .panel{background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);padding:16px;border-radius:12px;box-shadow:0 6px 20px rgba(2,6,23,0.6)}
+    .left{display:flex;flex-direction:column;gap:12px}
+    h1{font-size:18px;margin:0 0 8px 0}
+    .controls{display:flex;gap:8px;flex-wrap:wrap}
+    input.func-input{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:inherit}
+    .btn{padding:8px 10px;border-radius:8px;background:var(--accent);border:none;color:#04213a;cursor:pointer}
+    .ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)}
+    .func-list{max-height:300px;overflow:auto;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.03)}
+    .func-row{display:flex;align-items:center;justify-content:space-between;padding:8px;border-radius:6px;margin-bottom:6px;background:linear-gradient(90deg, rgba(255,255,255,0.01), transparent)}
+    .kbd{font-size:13px;color:var(--muted)}
+    .right{position:relative}
+    canvas#graph{width:100%;height:100%;border-radius:12px;display:block;background:linear-gradient(180deg,#071428 0%, #00121a 100%)}
+    .toolbar{position:absolute;left:16px;top:16px;display:flex;gap:8px;align-items:center;z-index:5}
+    .status{position:absolute;right:16px;top:16px;background:rgba(0,0,0,0.28);padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.02)}
+    .help{font-size:13px;color:var(--muted);}
+    .keypad{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+    .key{padding:10px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.02);cursor:pointer;text-align:center}
+    footer{font-size:13px;color:var(--muted);text-align:center}
+    @media(max-width:900px){.app{grid-template-columns:1fr;grid-auto-rows:360px}.left{order:2}}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="panel left">
+      <div>
+        <h1>Graphing Calculator</h1>
+        <div class="help">Enter functions in terms of <code>x</code>. Use operators + - * / ^ and functions like <code>sin, cos, tan, sqrt, exp, ln, log, abs</code>. PI and E supported.</div>
+      </div>
+
+      <div>
+        <input class="func-input" id="exprInput" placeholder="e.g. y=sin(x) or 2x+1" spellcheck="false">
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn" id="addFunc">Add & Plot</button>
+          <button class="ghost" id="clearAll">Clear</button>
+          <button class="ghost" id="exportPNG">Export PNG</button>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center">
+        <label class="kbd">x-range</label>
+        <input id="xmin" style="width:70px" value="-10" placeholder="min x" title="Minimum X value">
+        <input id="xmax" style="width:70px" value="10" placeholder="max x" title="Maximum X value">
+        <label class="kbd">samples</label>
+        <input id="samples" style="width:70px" value="1200" placeholder="samples" title="Number of samples">
+    </div>
+
+<div style="display:flex;gap:8px;align-items:center">
+<label class="kbd" for="gridToggle">grid</label>
+<input type="checkbox" id="gridToggle" checked title="Toggle grid">
+<label class="kbd" for="axisToggle">axis</label>
+<input type="checkbox" id="axisToggle" checked title="Toggle axis">
+</div>
+      </div>
+
+      <div>
+        <div class="kbd">Functions</div>
+        <div class="func-list" id="funcList"></div>
+      </div>
+
+      <div>
+        <div class="kbd">Keypad</div>
+        <div class="keypad" id="keypad">
+          <div class="key">sin(</div>
+          <div class="key">cos(</div>
+          <div class="key">tan(</div>
+          <div class="key">sqrt(</div>
+          <div class="key">ln(</div>
+          <div class="key">log(</div>
+          <div class="key">PI</div>
+          <div class="key">E</div>
+          <div class="key">ceil(</div>
+          <div class="key">floor(</div>
+          <div class="key">round(</div>
+          <div class="key">^</div>
+          <div class="key">+</div>
+          <div class="key">-</div>
+          <div class="key">*</div>
+          <div class="key">/</div>
+          <div class="key">(</div>
+          <div class="key">)</div>
+          <div class="key">x</div>
+        </div>
+      </div>
+
+      <footer>
+        Tips: scroll to zoom, drag to pan, double-click canvas to reset view.
+        <h3>-Made by Sampanna Mallik</h3>
+      </footer>
+    </div>
+
+    <div class="panel right">
+      <div class="toolbar">
+        <button class="ghost" id="zoomIn">+</button>
+        <button class="ghost" id="zoomOut">-</button>
+        <button class="ghost" id="resetView">Reset</button>
+      </div>
+      <div class="status" id="status">Ready</div>
+      <canvas id="graph"></canvas>
+    </div>
+  </div>
+
+  <script>
+    // Simple but careful expression handling + plotter
+    const canvas = document.getElementById('graph');
+    const ctx = canvas.getContext('2d');
+    const exprInput = document.getElementById('exprInput');
+    const addFuncBtn = document.getElementById('addFunc');
+    const funcListEl = document.getElementById('funcList');
+    const xminIn = document.getElementById('xmin');
+    const xmaxIn = document.getElementById('xmax');
+    const samplesIn = document.getElementById('samples');
+    const gridToggle = document.getElementById('gridToggle');
+    const axisToggle = document.getElementById('axisToggle');
+    const statusEl = document.getElementById('status');
+
+    // device pixel ratio handling
+    function resize() {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.floor(rect.width * devicePixelRatio);
+      canvas.height = Math.floor(rect.height * devicePixelRatio);
+      ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+      draw();
+    }
+    window.addEventListener('resize', resize);
+
+    // state
+    let funcs = []; // {expr, color, compiled}
+    const palette = ['#ff6b6b','#6bafff','#7cffc1','#ffd36b','#b48bff','#ff9ec0']
+
+    // view state
+    let view = {xMin:-10,xMax:10,yMin:-6,yMax:6};
+
+    function setStatus(s){ statusEl.textContent = s }
+
+    // expression -> safeJS
+    function sanitizeAndCompile(raw) {
+  if (!raw || !raw.trim()) throw new Error('Empty expression');
+
+  // Replace ^ with ** for exponentiation
+  let s = raw.replace(/\^/g, '**');
+
+  // Allow only basic characters (safety check)
+  const allowed = /^[0-9\.\+\-\*\/\(\) xXeE,\*\*\sA-Za-z_\^%]+$/;
+  if (!allowed.test(s)) {
+    // Allow letters for function names, so we don't block sin, cos, etc.
+  }
+
+  // Replace math functions with Math.* equivalents
+  s = s.replace(/\bsin\(/gi, 'Math.sin(');
+  s = s.replace(/\bcos\(/gi, 'Math.cos(');
+  s = s.replace(/\btan\(/gi, 'Math.tan(');
+  s = s.replace(/\basin\(/gi, 'Math.asin(');
+  s = s.replace(/\bacos\(/gi, 'Math.acos(');
+  s = s.replace(/\batan\(/gi, 'Math.atan(');
+  s = s.replace(/\bsqrt\(/gi, 'Math.sqrt(');
+  s = s.replace(/\babs\(/gi, 'Math.abs(');
+  s = s.replace(/\bexp\(/gi, 'Math.exp(');
+  s = s.replace(/\bln\(/gi, 'Math.log(');
+
+  // Add floor, ceil, and round support
+  s = s.replace(/\bfloor\(/gi, 'Math.floor(');
+  s = s.replace(/\bceil\(/gi, 'Math.ceil(');
+  s = s.replace(/\bround\(/gi, 'Math.round(');
+
+  // log as base10 -> Math.log10 if available, otherwise fallback
+  s = s.replace(/\blog\(/gi, function() {
+    if (typeof Math.log10 === 'function') return 'Math.log10(';
+    return '(Math.log('; // fallback
+  });
+
+  s = s.replace(/\bPI\b/gi, 'Math.PI');
+  s = s.replace(/\bE\b/gi, 'Math.E');
+
+  // Allow implicit multiplication: 2x -> 2*x, )x -> )*x, x( -> x*(
+  s = s.replace(/(\d)(?=x\b)/g, '$1*');
+  s = s.replace(/(\))(?=x\b)/g, ')*');
+  s = s.replace(/(x)\s*\(/g, '$1*(');
+
+  // Compile safely
+  const fnText = `with(Math){return (${s});}`;
+  let f;
+  try {
+    f = new Function('x', fnText);
+    f(1); // test
+  } catch (e) {
+    throw new Error('Parse error: ' + (e.message || e));
+  }
+  return f;
+}
+
+    function addFunction(expr){
+      try{
+        const compiled = sanitizeAndCompile(expr);
+        const color = palette[funcs.length % palette.length];
+        funcs.push({expr,compiled,color});
+        renderFuncList();
+        draw();
+        setStatus('Plotted: ' + expr);
+      }catch(e){ setStatus('Error: '+e.message); }
+    }
+
+    function removeFunction(idx){ funcs.splice(idx,1); renderFuncList(); draw(); }
+
+    function renderFuncList(){
+      funcListEl.innerHTML='';
+      funcs.forEach((f,i)=>{
+        const div = document.createElement('div'); div.className='func-row';
+        const left = document.createElement('div'); left.innerHTML=`<strong style="color:${f.color}">y = ${escapeHtml(f.expr)}</strong>`;
+        const right = document.createElement('div');
+        const del = document.createElement('button'); del.className='ghost'; del.textContent='Delete'; del.onclick=()=>removeFunction(i);
+        right.appendChild(del);
+        div.appendChild(left); div.appendChild(right);
+        funcListEl.appendChild(div);
+      })
+    }
+
+    function escapeHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;') }
+
+    function draw(){
+      if(!ctx) return;
+      // clear
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      // get view or compute from inputs
+      const w = canvas.clientWidth; const h = canvas.clientHeight;
+      const xMin = parseFloat(xminIn.value)||view.xMin;
+      const xMax = parseFloat(xmaxIn.value)||view.xMax;
+      const samples = Math.max(20, Math.min(5000, parseInt(samplesIn.value)||1200));
+      view.xMin = xMin; view.xMax = xMax;
+
+      // compute y range if empty: sample functions to get min/max
+      let yMin = Infinity, yMax = -Infinity;
+      const xs = []; for(let i=0;i<samples;i++){ xs.push( xMin + (xMax - xMin) * i/(samples-1) ); }
+      const allYs = [];
+      funcs.forEach((f)=>{
+        const ys = new Array(samples);
+        for(let i=0;i<samples;i++){
+          const x = xs[i];
+          try{ const y = +f.compiled(x); ys[i] = isFinite(y)?y:NaN; if(isFinite(y)){ yMin=Math.min(yMin,y); yMax=Math.max(yMax,y); } }catch(e){ ys[i]=NaN }
+        }
+        allYs.push(ys);
+      });
+      if(!isFinite(yMin) || !isFinite(yMax)){ yMin = -10; yMax = 10; }
+      // pad
+      const pad = (yMax-yMin)||1; yMin -= pad*0.12; yMax += pad*0.12;
+      view.yMin = yMin; view.yMax = yMax;
+
+      // transform helpers
+      function tx(x){ return ( (x - xMin) / (xMax - xMin) ) * w; }
+      function ty(y){ return h - ( (y - yMin)/(yMax - yMin) ) * h; }
+
+      // grid
+      if(gridToggle.checked){
+        ctx.save(); ctx.globalAlpha=0.08; ctx.lineWidth=1;
+        const xStep = chooseGridStep((xMax-xMin)/10);
+        for(let gx = Math.ceil(xMin/xStep)*xStep; gx <= xMax; gx += xStep){ const px = tx(gx); ctx.beginPath(); ctx.moveTo(px,0); ctx.lineTo(px,h); ctx.strokeStyle='white'; ctx.stroke(); }
+        const yStep = chooseGridStep((yMax-yMin)/8);
+        for(let gy = Math.ceil(yMin/yStep)*yStep; gy <= yMax; gy += yStep){ const py = ty(gy); ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(w,py); ctx.strokeStyle='white'; ctx.stroke(); }
+        ctx.restore();
+      }
+
+      // axes
+      if(axisToggle.checked){
+        ctx.save(); ctx.lineWidth=2; ctx.strokeStyle='rgba(255,255,255,0.6)';
+        // y axis at x=0
+        if(xMin <= 0 && xMax >= 0){ const px = tx(0); ctx.beginPath(); ctx.moveTo(px,0); ctx.lineTo(px,h); ctx.stroke(); }
+        // x axis at y=0
+        if(yMin <= 0 && yMax >= 0){ const py = ty(0); ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(w,py); ctx.stroke(); }
+        ctx.restore();
+      }
+
+      // draw functions
+      funcs.forEach((f,fi)=>{
+        const ys = allYs[fi];
+        ctx.save(); ctx.beginPath(); ctx.lineWidth = 2; ctx.strokeStyle = f.color; let started=false;
+        for(let i=0;i<xs.length;i++){
+          const y = ys[i]; const x = xs[i]; if(!isFinite(y) || isNaN(y)) { started=false; continue; }
+          const px = tx(x); const py = ty(y);
+          if(!started){ ctx.moveTo(px,py); started=true; } else { ctx.lineTo(px,py); }
+        }
+        ctx.stroke(); ctx.restore();
+      });
+
+      // overlay info
+      ctx.save(); ctx.fillStyle='rgba(255,255,255,0.06)'; ctx.fillRect(8,8,160,60); ctx.fillStyle='#e6eef8'; ctx.font='12px Inter';
+      ctx.fillText(`x: [${round(xMin,4)} , ${round(xMax,4)}]`, 14, 28);
+      ctx.fillText(`y: [${round(yMin,4)} , ${round(yMax,4)}]`, 14, 46);
+      ctx.restore();
+    }
+
+    function chooseGridStep(rangeApprox){
+      // nice step from range
+      const base = Math.pow(10, Math.floor(Math.log10(rangeApprox)));
+      const candidates = [base/5, base/2, base, base*2, base*5];
+      let best=candidates[0]; for(const c of candidates){ if(Math.abs(rangeApprox - c) < Math.abs(rangeApprox - best)) best=c; }
+      return best;
+    }
+    function round(v,prec){ return Math.round(v*(1/prec||10000))/ (1/prec||10000); }
+
+    // events
+    addFuncBtn.addEventListener('click', ()=>{ addFunction(exprInput.value); exprInput.value=''; });
+    document.getElementById('clearAll').addEventListener('click', ()=>{ funcs=[]; renderFuncList(); draw(); setStatus('Cleared'); });
+
+    // keypad
+    document.getElementById('keypad').addEventListener('click', (e)=>{
+      if(e.target.classList.contains('key')){
+        const v = e.target.textContent; const pos = exprInput.selectionStart || exprInput.value.length; const val = exprInput.value;
+        exprInput.value = val.slice(0,pos) + v + val.slice(pos);
+        exprInput.focus(); exprInput.selectionStart = pos + v.length; exprInput.selectionEnd = pos + v.length;
+      }
+    });
+
+    // export
+    document.getElementById('exportPNG').addEventListener('click', ()=>{
+      const url = canvas.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download='graph.png'; a.click();
+    });
+
+    // zoom/pan simple
+    let isDragging=false, lastX=0, lastY=0;
+    canvas.addEventListener('mousedown', e=>{ isDragging=true; lastX=e.clientX; lastY=e.clientY; canvas.style.cursor='grabbing'; });
+    window.addEventListener('mouseup', ()=>{ isDragging=false; canvas.style.cursor='default'; });
+    window.addEventListener('mousemove', e=>{
+      if(!isDragging) return; const dx = e.clientX - lastX; const dy = e.clientY - lastY; lastX = e.clientX; lastY = e.clientY;
+      const w = canvas.clientWidth, h = canvas.clientHeight;
+      const dxUnits = dx / w * (view.xMax - view.xMin);
+      const dyUnits = -dy / h * (view.yMax - view.yMin);
+      view.xMin -= dxUnits; view.xMax -= dxUnits; view.yMin -= dyUnits; view.yMax -= dyUnits;
+      xminIn.value = view.xMin; xmaxIn.value = view.xMax;
+      draw();
+    });
+    canvas.addEventListener('dblclick', ()=>{ view = {xMin:-10,xMax:10,yMin:-6,yMax:6}; xminIn.value=-10; xmaxIn.value=10; draw(); });
+    canvas.addEventListener('wheel', e=>{ e.preventDefault(); const zoom = e.deltaY>0?1.12:0.88; const mx = e.offsetX / canvas.clientWidth; const my = e.offsetY / canvas.clientHeight;
+      const xw = view.xMax - view.xMin; const yw = view.yMax - view.yMin;
+      const xCenter = view.xMin + xw * mx; const yCenter = view.yMin + yw * (1-my);
+      const newXw = xw * zoom; const newYw = yw * zoom;
+      view.xMin = xCenter - newXw * mx; view.xMax = view.xMin + newXw;
+      view.yMin = yCenter - newYw * (1-my); view.yMax = view.yMin + newYw;
+      xminIn.value = view.xMin; xmaxIn.value = view.xMax; draw();
+    }, {passive:false});
+
+    document.getElementById('zoomIn').addEventListener('click', ()=>{ const e={deltaY: -1, offsetX: canvas.clientWidth/2, offsetY: canvas.clientHeight/2}; canvas.dispatchEvent(new WheelEvent('wheel', e)); });
+    document.getElementById('zoomOut').addEventListener('click', ()=>{ const e={deltaY: 1, offsetX: canvas.clientWidth/2, offsetY: canvas.clientHeight/2}; canvas.dispatchEvent(new WheelEvent('wheel', e)); });
+    document.getElementById('resetView').addEventListener('click', ()=>{ view={xMin:-10,xMax:10,yMin:-6,yMax:6}; xminIn.value=-10; xmaxIn.value=10; draw(); });
+
+    // initial resize and draw
+    resize();
+
+    // helper for Math.log10 polyfill
+    if(typeof Math.log10 !== 'function') Math.log10 = function(x){ return Math.log(x)/Math.LN10; }
+
+  </script>
+</body>
+</html>
